@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Oceanfair – Ship Store Operations</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- ================= ACCESS GATE (ported from ThisWorkbook.cls Workbook_Open) ================= -->
+<div id="access-gate" class="gate-overlay hidden">
+  <div class="gate-box">
+    <h1>🔒 Restricted Workbook</h1>
+    <p>This site can only be opened from an authorized computer.</p>
+    <label for="computer-name-input">Computer Name:</label>
+    <input type="text" id="computer-name-input" placeholder="e.g. DEEP-LAP" autocomplete="off" />
+    <div class="gate-actions">
+      <button id="btn-check-access" class="btn btn-primary">Verify Access</button>
+    </div>
+    <p id="gate-error" class="gate-error hidden"></p>
+    <p class="gate-note">Allowed computers are configured in <code>js/access-control.js</code>
+      (DC1-AKSHAY-LAP, DC1-AKASH-PC, DEEP-LAP, BHAVESH-PC).</p>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app" class="hidden">
+
+  <!-- Common header with GLOBAL NAVIGATION BUTTONS ("all button only in all the sheet") -->
+  <header class="app-header">
+    <div class="brand">🚢 Oceanfair Ops</div>
+    <nav class="global-nav" aria-label="Sheet navigation buttons (available on every tab)">
+      <button class="btn btn-nav" data-action="goto-eta">📡 Go To ETA INFO</button>
+      <button class="btn btn-nav" data-action="goto-reorder">🔁 Go To RE-ORDER</button>
+      <button class="btn btn-nav" data-action="goto-inquiry">📋 Go To Inquiry data</button>
+      <button class="btn btn-nav" data-action="goto-emaillog">🗂 Go To EmailLog</button>
+      <button class="btn btn-nav" data-action="goto-suppliers">🏭 Go To Suppliers</button>
+      <button class="btn btn-nav btn-accent" data-action="qc-report">✅ QC REPORT</button>
+      <button class="btn btn-nav btn-water" data-action="water-order">💧 WATER ORDER</button>
+    </nav>
+  </header>
+
+  <!-- Tab strip (5 tabs, Tab 4 hidden like xlSheetVeryHidden) -->
+  <div class="tab-strip" role="tablist">
+    <button class="tab-btn active" data-tab="tab1" role="tab">Tab 1 · ETA INFO</button>
+    <button class="tab-btn" data-tab="tab2" role="tab">Tab 2 · RE-ORDER</button>
+    <button class="tab-btn" data-tab="tab3" role="tab">Tab 3 · INQUIRY DATA</button>
+    <button class="tab-btn" data-tab="tab4" role="tab" id="tab4-btn" style="display:none;">Tab 4 · SUPPLIERS (hidden)</button>
+    <button class="tab-btn" data-tab="emaillog" role="tab">EmailLog</button>
+  </div>
+
+  <main class="sheet-area">
+
+    <!-- ==================== TAB 1 : ETA INFO (folder "Tab 1") ==================== -->
+    <section class="sheet-panel active" id="tab1" data-sheet="ETA INFO">
+      <div class="panel-head">
+        <h2>ETA INFO <span class="muted">(Tab 1 folder)</span></h2>
+        <div class="run-buttons">
+          <button class="btn btn-run" data-macro="extractVesselData">📥 Extract Vessel Data</button>
+          <button class="btn btn-run" data-macro="addPortDropdown">🔽 Add Port Dropdown (No Password)</button>
+          <button class="btn btn-run btn-send" data-macro="sendEtaEmail">✉ Send Stylish ETA Email</button>
+        </div>
+      </div>
+      <div class="sheet-toolbar">
+        <button class="btn btn-mini" data-op="row-add" data-target="grid-tab1">＋ Row</button>
+        <button class="btn btn-mini" data-op="row-del" data-target="grid-tab1">－ Row</button>
+        <button class="btn btn-mini" data-op="clear" data-target="grid-tab1">🗑 Clear</button>
+        <span class="hint">Columns A–E editable · SR# auto-numbers on change (Sheet1.cls Worksheet_Change port) · excluded group headers are not numbered</span>
+      </div>
+      <div class="grid-wrap"><table id="grid-tab1" class="sheet-grid eta-grid"></table></div>
+    </section>
+
+    <!-- ==================== TAB 2 : RE-ORDER (folder "tab 2") ==================== -->
+    <section class="sheet-panel" id="tab2" data-sheet="RE-ORDER">
+      <div class="panel-head">
+        <h2>RE-ORDER <span class="muted">(Tab 2 folder)</span></h2>
+        <div class="run-buttons">
+          <button class="btn btn-run btn-send" data-macro="sendReorderEmail">✉ Send Dynamic HTML Table Email (Re-Order)</button>
+        </div>
+      </div>
+      <div class="sheet-toolbar">
+        <button class="btn btn-mini" data-op="row-add" data-target="grid-tab2">＋ Row</button>
+        <button class="btn btn-mini" data-op="row-del" data-target="grid-tab2">－ Row</button>
+        <button class="btn btn-mini" data-op="clear" data-target="grid-tab2">🗑 Clear</button>
+        <span class="hint">Rows are filtered by Supplier-SR numbers in column G when sending</span>
+      </div>
+      <div class="grid-wrap"><table id="grid-tab2" class="sheet-grid reorder-grid"></table></div>
+    </section>
+
+    <!-- ==================== TAB 3 : INQUIRY DATA (folder "tab 3") ==================== -->
+    <section class="sheet-panel" id="tab3" data-sheet="Inquiry data">
+      <div class="panel-head">
+        <h2>Inquiry data <span class="muted">(Tab 3 folder)</span></h2>
+        <div class="run-buttons">
+          <button class="btn btn-run" data-macro="addMailList">🔽 Add Mail List Dropdown (J3:J6)</button>
+          <button class="btn btn-run btn-send" data-macro="sendInquiryEmails">📨 SEND EMAILS TO SUPPLIERS (Excel Format)</button>
+          <button class="btn btn-run" data-macro="viewEmailLog">🗂 View Email Log</button>
+        </div>
+      </div>
+
+      <div class="inquiry-top">
+        <div class="ref-box">
+          <label>Quote / Reference No. <span class="muted">(K2)</span></label>
+          <input type="text" id="inq-ref-no" placeholder="e.g. Q-2026-0145" />
+        </div>
+        <div class="cc-box">
+          <label>CC recipients <span class="muted">(K3:K5)</span></label>
+          <input type="text" id="inq-cc-1" placeholder="K3 email" />
+          <input type="text" id="inq-cc-2" placeholder="K4 email" />
+          <input type="text" id="inq-cc-3" placeholder="K5 email" />
+        </div>
+        <div class="mail-list-box">
+          <label>Mail List <span class="muted">(J3:J6 – dropdown)</span></label>
+          <select id="mail-list-1"></select>
+          <select id="mail-list-2"></select>
+          <select id="mail-list-3"></select>
+          <select id="mail-list-4"></select>
+        </div>
+      </div>
+
+      <div class="sheet-toolbar">
+        <button class="btn btn-mini" data-op="row-add" data-target="grid-tab3">＋ Row</button>
+        <button class="btn btn-mini" data-op="row-del" data-target="grid-tab3">－ Row</button>
+        <button class="btn btn-mini" data-op="clear" data-target="grid-tab3">🗑 Clear</button>
+        <span class="hint">Supplier code(s) go in column H (comma separated). Max 25 items per batch email.</span>
+      </div>
+      <div class="grid-wrap"><table id="grid-tab3" class="sheet-grid inquiry-grid"></table></div>
+
+      <!-- Supplier scroll area (SpinButton1_Change port: J7:K29 window) -->
+      <div class="supplier-scroll">
+        <div class="ss-head">
+          <h3>Supplier List <span class="muted">(scroll area J7:K29 – reads hidden Suppliers tab)</span></h3>
+          <div class="spin">
+            <button class="btn btn-spin" data-macro="spinUp">▲</button>
+            <span id="spin-value">1</span>
+            <button class="btn btn-spin" data-macro="spinDown">▼</button>
+          </div>
+        </div>
+        <table id="grid-supplier-scroll" class="sheet-grid small"></table>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4 : SUPPLIERS — HIDDEN (tab4.cls) ==================== -->
+    <section class="sheet-panel locked-panel" id="tab4" data-sheet="Suppliers">
+      <div class="lock-screen">
+        <h2>🔒 This sheet is HIDDEN (xlSheetVeryHidden)</h2>
+        <p>The Suppliers tab is protected, exactly like <code>tab4.cls</code> in the workbook.<br/>
+           Enter the sheet password to unlock it.</p>
+        <input type="password" id="tab4-password" placeholder="Password" />
+        <div class="gate-actions">
+          <button class="btn btn-primary" data-macro="unlockTab4">🔓 Unlock Suppliers Sheet</button>
+        </div>
+      </div>
+
+      <div class="unlocked-content hidden">
+        <div class="panel-head">
+          <h2>Suppliers <span class="muted">(Tab 4 – hidden sheet, black bg / white text)</span></h2>
+          <div class="run-buttons">
+            <button class="btn btn-run" data-macro="executeAllFunctions">⚙ Execute All Functions</button>
+            <button class="btn btn-mini" data-op="row-add" data-target="grid-tab4">＋ Row</button>
+            <button class="btn btn-mini" data-op="row-del" data-target="grid-tab4">－ Row</button>
+          </div>
+        </div>
+        <div class="sheet-toolbar">
+          <span class="hint">Execute All = protection + white text + A/B re-numbering + auto-lock filled cells (ExecuteAllFunctions port). Editing A/B triggers the Worksheet_Change logic automatically.</span>
+        </div>
+        <div class="grid-wrap dark"><table id="grid-tab4" class="sheet-grid suppliers-grid"></table></div>
+      </div>
+    </section>
+
+    <!-- ==================== EMAIL LOG (created by InitializeLogSheet) ==================== -->
+    <section class="sheet-panel" id="emaillog" data-sheet="EmailLog">
+      <div class="panel-head">
+        <h2>EmailLog <span class="muted">(auto-created log sheet)</span></h2>
+        <div class="run-buttons">
+          <button class="btn btn-run" data-macro="clearLogForQuote">🧹 Clear Log For Quote…</button>
+          <button class="btn btn-run btn-danger" data-macro="clearAllLogData">🗑 Clear ALL Log Data</button>
+        </div>
+      </div>
+      <div class="grid-wrap"><table id="grid-emaillog" class="sheet-grid log-grid"></table></div>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    VBA workbook converted to web · macros run client-side · emails open in your mail app (mailto:) instead of Outlook.
+  </footer>
+</div>
+
+<!-- ================= MODALS (InputBox / MsgBox replacements) ================= -->
+<div id="modal-backdrop" class="modal-backdrop hidden">
+  <div class="modal-box">
+    <h3 id="modal-title"></h3>
+    <div id="modal-body"></div>
+    <div id="modal-input-wrap" class="hidden"><input type="text" id="modal-input" /></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<!-- Water order userform (WaterOrderForm.frm port) -->
+<div id="water-modal" class="modal-backdrop hidden">
+  <div class="modal-box">
+    <h3>Water Order Form</h3>
+    <label>Vessel Name</label><input type="text" id="w-vessel" />
+    <label>Sales Order Number</label><input type="text" id="w-order" />
+    <label>Quantity (CS)</label><input type="number" id="w-qty" min="1" />
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="w-submit">Submit</button>
+      <button class="btn" id="w-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Date picker userform (frmDatePicker.frm port) -->
+<div id="date-modal" class="modal-backdrop hidden">
+  <div class="modal-box">
+    <h3>Select Loading Date</h3>
+    <div class="date-row">
+      <select id="dp-day"></select>
+      <select id="dp-month"></select>
+      <select id="dp-year"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="dp-ok">OK</button>
+      <button class="btn" id="dp-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast notifications (MsgBox replacement) -->
+<div id="toast-stack"></div>
+
+<script src="js/access-control.js"></script>
+<script src="js/core.js"></script>
+<script src="js/common-buttons.js"></script>
+<script src="js/tab1.js"></script>
+<script src="js/tab2.js"></script>
+<script src="js/tab3.js"></script>
+<script src="js/hidden-tab4.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

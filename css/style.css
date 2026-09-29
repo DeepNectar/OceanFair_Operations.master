@@ -1,0 +1,114 @@
+/* ============================================================
+   style.css — common for ALL tabs (converted from VBA formatting)
+   Colors mirror the VBA RGB() calls:
+   - Tab1 header  RGB(250,191,143) orange  | Tab4 black bg + white text + red borders
+   - ETA email    #40E0D0 turquoise header | RE-ORDER #4472C4 blue header
+   ============================================================ */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; font-family: "Segoe UI", Arial, sans-serif; background: #eef2f7; color: #1f2937; }
+.hidden { display: none !important; }
+.muted { color: #6b7280; font-size: .8em; font-weight: normal; }
+
+/* ---------- Buttons (all macros are run through buttons) ---------- */
+.btn { border: 1px solid #c3ccd9; background: #fff; color: #1f2937; padding: 7px 12px;
+       border-radius: 8px; cursor: pointer; font-size: 13px; transition: .15s; }
+.btn:hover { filter: brightness(.95); transform: translateY(-1px); }
+.btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.btn-run     { background: #0f766e; border-color: #0f766e; color: #fff; font-weight: 600; }
+.btn-send    { background: #b91c1c; border-color: #b91c1c; color: #fff; font-weight: 600; }
+.btn-danger  { background: #7f1d1d; border-color: #7f1d1d; color: #fff; }
+.btn-mini    { padding: 4px 9px; font-size: 12px; background: #e2e8f0; }
+.btn-nav     { background: #1e293b; border-color: #1e293b; color: #e2e8f0; font-size: 12px; }
+.btn-accent  { background: #b45309; border-color: #b45309; color: #fff; }
+.btn-water   { background: #0ea5e9; border-color: #0ea5e9; color: #fff; }
+.btn-spin    { padding: 2px 12px; font-size: 14px; }
+
+/* ---------- Access gate (ThisWorkbook.cls computer check) ---------- */
+.gate-overlay { position: fixed; inset: 0; background: linear-gradient(135deg,#0f172a,#1e3a8a);
+                display: flex; align-items: center; justify-content: center; z-index: 100; }
+.gate-box { background: #fff; padding: 34px 38px; border-radius: 16px; max-width: 460px; width: 92%;
+            box-shadow: 0 25px 60px rgba(0,0,0,.45); text-align: center; }
+.gate-box h1 { margin: 0 0 8px; font-size: 22px; }
+.gate-box input { width: 100%; margin: 14px 0; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 15px; }
+.gate-actions { display: flex; justify-content: center; gap: 10px; }
+.gate-error { color: #b91c1c; font-weight: 600; }
+.gate-note { font-size: 11.5px; color: #6b7280; }
+
+/* ---------- Header with GLOBAL nav buttons ("all button only in all the sheet") ---------- */
+.app-header { background: #0f172a; color: #fff; padding: 12px 18px; display: flex; flex-wrap: wrap;
+              gap: 12px; align-items: center; justify-content: space-between; }
+.brand { font-size: 18px; font-weight: 700; letter-spacing: .5px; }
+.global-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---------- Tab strip ---------- */
+.tab-strip { display: flex; background: #dbe3ee; border-bottom: 2px solid #b6c2d4; overflow-x: auto; }
+.tab-btn { border: none; background: transparent; padding: 12px 20px; cursor: pointer;
+           font-size: 13.5px; font-weight: 600; color: #475569; border-bottom: 3px solid transparent; white-space: nowrap; }
+.tab-btn.active { background: #fff; color: #0f172a; border-bottom-color: #2563eb; }
+
+/* ---------- Sheet panels ---------- */
+.sheet-area { padding: 16px; }
+.sheet-panel { display: none; background: #fff; border-radius: 12px; padding: 16px;
+               box-shadow: 0 2px 10px rgba(15,23,42,.08); }
+.sheet-panel.active { display: block; }
+.panel-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.panel-head h2 { margin: 0; font-size: 19px; }
+.run-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.sheet-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.hint { font-size: 11.5px; color: #6b7280; }
+
+/* ---------- Editable grids (spreadsheet feel) ---------- */
+.grid-wrap { overflow: auto; max-height: 62vh; border: 1px solid #cbd5e1; border-radius: 8px; }
+.grid-wrap.dark { background: #000; }
+.sheet-grid { border-collapse: collapse; width: 100%; font-size: 13px; }
+.sheet-grid th { position: sticky; top: 0; background: #fabb8f; /* RGB(250,191,143) header row */
+                 font-family: "Times New Roman", serif; font-weight: bold; border: 1px solid #94a3b8; padding: 6px; z-index: 2; }
+.sheet-grid td.rownum { background: #f1f5f9; color: #64748b; text-align: center; font-size: 11px; width: 34px; user-select: none; }
+.sheet-grid td[contenteditable] { border: 1px solid #cbd5e1; padding: 5px 7px; min-width: 90px; outline: none; background: #fff; }
+.sheet-grid td[contenteditable]:focus { background: #e0f2fe; box-shadow: inset 0 0 0 2px #2563eb; }
+.sheet-grid td.locked-cell { background: #f8fafc; color: #475569; }
+.sheet-grid td.center { text-align: center; }
+.sheet-grid td.left { text-align: left; }
+.sheet-grid td.tnr { font-family: "Times New Roman", serif; font-weight: bold; }
+
+/* Tab 4 (tab4.cls): black fill, WHITE text, RED borders on numbered rows */
+.suppliers-grid th { background: #000; color: #fff; }
+.suppliers-grid td[contenteditable] { background: #000; color: #fff; border-color: #555; }
+.suppliers-grid td.numbered { background: #000 !important; color: #fff !important; border: 1px solid #f00 !important; }
+.suppliers-grid td.locked-cell { background: #111; color: #fff; }
+
+/* ---------- Tab 3 extras ---------- */
+.inquiry-top { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; padding: 12px;
+               background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; }
+.inquiry-top label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.inquiry-top input, .inquiry-top select { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; display: block; margin-bottom: 5px; min-width: 210px; }
+.supplier-scroll { margin-top: 16px; }
+.ss-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ss-head h3 { margin: 4px 0; font-size: 15px; }
+.spin { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.sheet-grid.small td[contenteditable] { min-width: 60px; }
+
+/* Locked panel (hidden tab4 before unlock) */
+.lock-screen { text-align: center; padding: 60px 20px; }
+.lock-screen input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; margin: 14px 0; width: 260px; }
+
+/* ---------- Modals (InputBox/MsgBox/UserForm replacements) ---------- */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(2,6,23,.55); display: flex;
+                  align-items: center; justify-content: center; z-index: 90; }
+.modal-box { background: #fff; border-radius: 14px; padding: 22px 24px; width: min(480px, 92vw);
+             max-height: 88vh; overflow: auto; box-shadow: 0 20px 50px rgba(0,0,0,.4); }
+.modal-box h3 { margin: 0 0 10px; }
+.modal-box label { display: block; font-size: 12.5px; font-weight: 600; margin: 10px 0 4px; }
+.modal-box input, .modal-box select { width: 100%; padding: 9px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+#modal-body { font-size: 14px; line-height: 1.45; white-space: pre-line; }
+.date-row { display: flex; gap: 8px; }
+
+/* ---------- Toasts (MsgBox replacement) ---------- */
+#toast-stack { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 120; }
+.toast { background: #0f172a; color: #fff; padding: 11px 16px; border-radius: 10px; font-size: 13px;
+         box-shadow: 0 8px 22px rgba(0,0,0,.35); animation: tin .25s ease; max-width: 380px; white-space: pre-line; }
+.toast.info { background: #0f766e; } .toast.warn { background: #b45309; } .toast.error { background: #b91c1c; }
+@keyframes tin { from { transform: translateY(12px); opacity: 0; } }
+
+.app-footer { text-align: center; font-size: 12px; color: #64748b; padding: 18px; }
