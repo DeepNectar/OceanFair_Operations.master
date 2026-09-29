@@ -26,6 +26,25 @@ OF.bindCommonButtons = function () {
   document.querySelectorAll('[data-op]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var target = btn.dataset.target, op = btn.dataset.op;
+      // buildGrid always renders at least spec.maxRows rows, so simply pushing/
+      // popping saved rows did nothing visible — adjust the limit instead.
+      function editRowCount(delta) {
+        var table = document.getElementById(target);
+        if (!table || !table._spec) return;
+        var cur = Math.max(table._spec.maxRows || 30, table._spec.rows.length);
+        var next = cur + delta;
+        if (next < 2) { OF.warn('At least one data row is required.', 'Row Ops'); return; }
+        var d = table._spec.rows.slice(); // authoritative current data (buildGrid keeps it in sync)
+        if (delta > 0) { while (d.length < next) d.push(d[0].map(function () { return ''; })); }
+        else { d = d.slice(0, next); }
+        table._spec.maxRows = next;
+        table._spec.rows = d;
+        table._spec.rowsIsFresh = true; // spec.rows already reflects the DOM
+        OF.save(target, d);
+        OF.buildGrid(table._spec);
+        table._spec.rowsIsFresh = false;
+        OF.rebuildFromSave(target);
+      }
       if (op === 'clear') {
         OF.confirmBox('Clear ALL data on this sheet? (Header row kept)', 'Clear Sheet', 'yesno').then(function (y) {
           if (y !== 'Yes') return;
@@ -35,15 +54,8 @@ OF.bindCommonButtons = function () {
           OF.rebuildFromSave(target);
         });
       }
-      if (op === 'row-add') {
-        var d = OF.readGrid(target);
-        d.push(d[0].map(function () { return ''; }));
-        OF.save(target, d); OF.rebuildFromSave(target);
-      }
-      if (op === 'row-del') {
-        var d2 = OF.readGrid(target);
-        if (d2.length > 1) { d2.pop(); OF.save(target, d2); OF.rebuildFromSave(target); }
-      }
+      if (op === 'row-add') editRowCount(+1);
+      if (op === 'row-del') editRowCount(-1);
     });
   });
 };
