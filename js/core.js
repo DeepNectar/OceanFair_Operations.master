@@ -82,6 +82,14 @@ OF.confirmBox = function (question, title, buttons) {
 /*  spec = { id, columns:[{name, align}], rows: [[..]], maxRows, onChange(r,c), isLocked(r,c) } */
 OF.buildGrid = function (spec) {
   var table = document.getElementById(spec.id);
+  // keep runtime edits (e.g. port dropdowns added by addPortDropdown) in sync
+  // with spec.rows BEFORE rebuilding, otherwise the rebuild wipes unsaved DOM state.
+  // rowsIsFresh: caller already synced spec.rows with the current DOM.
+  if (table && table._spec === spec && !spec.rowsIsFresh) {
+    var dom = OF.readGrid(spec.id);
+    while (dom.length < spec.rows.length) dom.push(spec.rows[dom.length].map(function () { return ''; }));
+    spec.rows = dom;
+  }
   var html = '<thead><tr><th class="rownum">#</th>';
   spec.columns.forEach(function (col) { html += '<th>' + col.name + '</th>'; });
   html += '</tr></thead><tbody>';
@@ -129,7 +137,6 @@ OF.readGrid = function (id) {
 };
 
 OF.writeCell = function (id, r, c, val, cls) {
-  var td = document.querySelector('#' + id + ' tbody tr[data-rowidx]'); // not used
   var table = document.getElementById(id);
   var trs = table.querySelectorAll('tbody tr');
   if (!trs[r]) return;

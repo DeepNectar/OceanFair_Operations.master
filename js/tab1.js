@@ -59,15 +59,20 @@ OF.initTab1 = function () {
       { name: 'ETA-ETB-ETD', align: 'center' },
       { name: 'REMARKS (FFV, Bread & Dairy)', align: 'center' }
     ],
-    rows: demo, maxRows: 101,
+    rows: demo, maxRows: Math.max(101, demo.length),
     isLocked: function (r) { return r === 0; }, // header row protected like Excel
     onChange: function () { OF.tab1WorksheetChange(); }
   });
   OF.tab1WorksheetChange();
 };
 
+/* Re-apply port dropdowns after a grid rebuild (only when the flag is set). */
+OF.maybeRestorePortDropdown = function () {
+  if (OF.load('grid-tab1-portdropdown', false)) OF.addPortDropdown(true);
+};
+
 /* ---------- ETA2.bas AddListClass_NoPassword -> dropdown on C2:C101 ---------- */
-OF.addPortDropdown = function () {
+OF.addPortDropdown = function (silent) {
   var trs = document.querySelectorAll('#grid-tab1 tbody tr');
   var ports = OF.PORT_LIST.split(',').map(function (p) { return p.trim(); });
   for (var i = 1; i < trs.length && i <= 100; i++) {
@@ -87,7 +92,8 @@ OF.addPortDropdown = function () {
     td.removeAttribute('contenteditable');
     td.appendChild(sel);
   }
-  OF.info('Dropdown lists for ports added successfully in Column C!\nSheet is protected (without password) but dropdowns work.', 'ETA2');
+  OF.save('grid-tab1-portdropdown', true); // remember so a later grid rebuild re-applies it
+  if (!silent) OF.info('Dropdown lists for ports added successfully in Column C!\nSheet is protected (without password) but dropdowns work.', 'ETA2');
 };
 
 /* ---------- ETA1.bas SendStylishEmailWithTableofETA ---------- */
