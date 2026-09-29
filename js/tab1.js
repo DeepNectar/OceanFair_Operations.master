@@ -52,6 +52,7 @@ OF.initTab1 = function () {
   ]);
   OF.buildGrid({
     id: 'grid-tab1',
+    sheetName: 'ETA INFO',
     columns: [
       { name: 'SR#', align: 'center' },
       { name: 'SHIP TO/VESSEL', align: 'left' },
@@ -147,27 +148,33 @@ OF.sendEtaEmail = function () {
 
 /* ---------- VesselExtractETAData.bas ExtractVesselData ----------
    Browser can't open external .xlsx silently, so the user uploads
-   the file; parsing uses a CSV/TSV fallback reader.              */
+   the file. Real .xlsx files are now parsed properly (zip + sheet
+   XML reader in core.js); CSV/TSV/TXT use the delimited reader.  */
 OF.extractVesselData = function () {
   return new Promise(function (resolve) {
     var inp = document.createElement('input');
     inp.type = 'file';
-    inp.accept = '.csv,.txt,.xlsx,.xls';
+    inp.accept = '.xlsx,.csv,.txt,.tsv';
     inp.onchange = function () {
       if (!inp.files.length) { OF.warn('No file selected. Operation cancelled.', 'Extract'); return resolve(); }
-      var reader = new FileReader();
-      reader.onload = function () {
-        try {
-          var text = String(reader.result);
-          var delim = text.indexOf('\t') > -1 ? '\t' : ',';
-          var lines = text.split(/\r?\n/).filter(function (l) { return l.trim() !== ''; });
-          if (lines.length < 2) { OF.warn('No data found in the source sheet.', 'Extract'); return resolve(); }
-          var rows = lines.map(function (l) { return l.split(delim); });
-          OF.processVesselRows(rows, inp.files[0].name);
-        } catch (e) { OF.error('An error occurred: ' + e.message, 'Extract'); }
+      var file = inp.files[0];
+      var finish = function (rows) {
+        if (!rows || rows.length < 2) { OF.warn('No data found in the source sheet.', 'Extract'); return resolve(); }
+        OF.processVesselRows(rows, file.name);
         resolve();
       };
-      reader.readAsText(inp.files[0]);
+      var fail = function (e) { OF.error('An error occurred: ' + (e && e.message ? e.message : e), 'Extract'); resolve(); };
+      if (/\.xlsx$/i.test(file.name)) {
+        OF.readXlsxAsync(file).then(finish)['catch'](fail);
+      } else {
+        var reader = new FileReader();
+        reader.onload = function () {
+          try { finish(OF.parseDelimited(String(reader.result))); }
+          catch (e) { fail(e); }
+        };
+        reader.onerror = function () { fail(new Error('Could not read the file.')); };
+        reader.readAsText(file);
+      }
     };
     inp.click();
   });
@@ -186,20 +193,44 @@ OF.getPortGroup = function (portName) { // GetPortGroup port
 
 OF.processVesselRows = function (rows, fileName) {
   var validCodes = ['YA', 'AF', 'DA', 'BH']; // column G check
+  rows = rows.filter(function (r) { return r && r.some(function (c) { return String(c).trim() !== ''; }); }); // drop blank lines
+  if (rows.length < 2) { OF.warn('No data found in the source sheet.', 'Extract'); return; }
+
+  var header = (rows[0] || []).map(function (h) { return String(h).trim().toUpperCase(); });
+  var findCol = function (re) {
+    for (var c = 0; c < header.length; c++) if (re.test(header[c])) return c;
+    return -1;
+  };
+  // Locate columns by header name first (robust against extra/shifted columns);
+  // fall back to the original VBA fixed positions: D(3)=vessel, G(6)=code, K(10)=port.
+  var vesselCol = findCol(/VESSEL|SHIP\s*TO|SHIPMENT|CLIENT|CUSTOMER/);
+  var codeCol   = findCol(/AGENT|CODE|^G$/);
+  var portCol   = findCol(/PORT|DISCHARGE|LOADING\s*PORT/);
+  if (vesselCol === -1) vesselCol = 3;
+  if (codeCol === -1)   codeCol = 6;
+  if (portCol === -1)   portCol = 10;
+
+  var cellAt = function (r, idx) { return String(r[idx] === undefined ? '' : r[idx]).trim(); };
   var dict = {}; // vessel -> [port, group]
   for (var i = 1; i < rows.length; i++) { // first pass from row 2
     var r = rows[i];
-    var code = String(r[6] === undefined ? '' : r[6]).trim().toUpperCase(); // col G
+    var code = cellAt(r, codeCol).toUpperCase(); // col G
     if (validCodes.indexOf(code) === -1) continue;
-    var vessel = String(r[3] === undefined ? '' : r[3]).trim(); // col D
+    var vessel = cellAt(r, vesselCol); // col D
     if (!vessel) continue;
     if (!(vessel in dict)) {
-      var port = String(r[10] === undefined ? '' : r[10]).trim().toUpperCase(); // col K
+      var port = cellAt(r, portCol).toUpperCase(); // col K
       dict[vessel] = [port, OF.getPortGroup(port)];
     }
   }
   var keys = Object.keys(dict);
-  if (!keys.length) { OF.warn('No data found matching the criteria (YA, AF, DA, BH).', 'Extract'); return; }
+  if (!keys.length) {
+    OF.warn('No data found matching the criteria (YA, AF, DA, BH) in column "' +
+            (header[codeCol] || ('col ' + (codeCol + 1))) + '".\n' +
+            'Tip: the file must have a header row and the agent-code column containing YA/AF/DA/BH.',
+            'Extract');
+    return;
+  }
 
   var groups = ['Fujairah / East Coast', 'Dubai / Jebel Ali Area / Sharjah / Hamriyah', 'Abu Dhabi Area', 'Other / Unknown'];
   var out = [['', 'SHIP TO/VESSEL', 'DELIVERY PORT', 'ETA-ETB-ETD', 'REMARKS']];
@@ -212,5 +243,6 @@ OF.processVesselRows = function (rows, fileName) {
   });
   OF.save('grid-tab1', out);
   OF.initTab1();
+  OF.maybeRestorePortDropdown(); // keep the C-column dropdowns alive after the rebuild
   OF.info('Data extraction completed!\nSource File: ' + fileName + '\nTotal unique vessels extracted: ' + keys.length, 'Extract');
 };

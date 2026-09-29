@@ -46,16 +46,60 @@ OF.bindCommonButtons = function () {
         OF.rebuildFromSave(target);
       }
       if (op === 'clear') {
-        OF.confirmBox('Clear ALL data on this sheet? (Header row kept)', 'Clear Sheet', 'yesno').then(function (y) {
-          if (y !== 'Yes') return;
-          var d = OF.readGrid(target);
-          var cleared = d.map(function (row, idx) { return idx === 0 ? row : row.map(function () { return ''; }); });
-          OF.save(target, cleared);
-          OF.rebuildFromSave(target);
-        });
+        OF.clearSheet(target, ((document.getElementById(target) || {})._spec || {}).sheetName || target);
+      }
+      if (op === 'import-excel') {
+        var fi = document.getElementById('import-file-' + target);
+        if (fi) { fi.value = ''; fi.click(); }
+      }
+      if (op === 'export-excel') {
+        var table = document.getElementById(target);
+        var sheetName = (table && table._spec && table._spec.sheetName) || target;
+        var rows = OF.readGrid(target);
+        if (!rows.length) { OF.warn('Nothing to export.', 'Export'); return; }
+        OF.downloadCsv(OF.cleanFileName(sheetName) + '.csv', OF.rowsToCsv(rows));
+        OF.info('Exported "' + OF.cleanFileName(sheetName) + '.csv" — open it in Excel.', 'Export');
       }
       if (op === 'row-add') editRowCount(+1);
       if (op === 'row-del') editRowCount(-1);
+    });
+  });
+
+  /* hidden file inputs: import data from Excel (.xlsx / .csv) into a sheet */
+  document.querySelectorAll('input[type="file"][data-target]').forEach(function (inp) {
+    inp.addEventListener('change', function () {
+      if (!inp.files.length) return;
+      var target = inp.dataset.target;
+      var table = document.getElementById(target);
+      var sheetName = (table && table._spec && table._spec.sheetName) || target;
+      var file = inp.files[0];
+      var applyRows = function (rows) {
+        if (!rows || !rows.length) { OF.warn('No data found in the selected file.', 'Import'); return; }
+        var width = (table && table._spec ? table._spec.columns.length : 0) || rows[0].length;
+        var norm = rows.map(function (r) {
+          var out = [];
+          for (var c = 0; c < width; c++) out.push(String(r[c] == null ? '' : r[c]).trim());
+          return out;
+        });
+        OF.save(target, norm);
+        OF.rebuildFromSave(target);
+        OF.info('Imported ' + norm.length + ' row(s) from "' + file.name + '" into ' + sheetName + '.', 'Import');
+      };
+      if (/\.xlsx$/i.test(file.name)) {
+        OF.readXlsxAsync(file).then(applyRows)['catch'](function (e) {
+          OF.error('Could not read the .xlsx file: ' + e.message + '\nTip: save the sheet as .csv and import that instead.', 'Import');
+        });
+      } else if (/\.xls$/i.test(file.name)) {
+        OF.error('Old .xls files are not supported. Please re-save the sheet as .xlsx or .csv in Excel first.', 'Import');
+      } else {
+        var reader = new FileReader();
+        reader.onload = function () {
+          try { applyRows(OF.parseDelimited(String(reader.result))); }
+          catch (e) { OF.error('An error occurred: ' + e.message, 'Import'); }
+        };
+        reader.onerror = function () { OF.error('Could not read the file.', 'Import'); };
+        reader.readAsText(file);
+      }
     });
   });
 };
@@ -64,12 +108,35 @@ OF.bindCommonButtons = function () {
 OF.rebuildFromSave = function (gridId) {
   var table = document.getElementById(gridId);
   if (table && table._spec) {
-    table._spec.rows = OF.readGrid(gridId);
+    table._spec.rows = OF.load(gridId, null) || OF.readGrid(gridId);
     OF.buildGrid(table._spec);
     if (gridId === 'grid-tab1') OF.tab1WorksheetChange();
     if (gridId === 'grid-tab4') OF.tab4WorksheetChange(1, 1);
     if (gridId === 'grid-tab3' || gridId === 'grid-tab4') OF.refreshSupplierScroll();
+    if (gridId === 'grid-tab1') OF.maybeRestorePortDropdown(); // re-add port dropdowns after rebuild
   }
+};
+
+/* ---------- Clear Sheet button (per-sheet, keeps header row) ---------- */
+OF.clearSheet = function (gridId, sheetName) {
+  return OF.confirmBox('Clear ALL data on the "' + sheetName + '" sheet? (Header row kept)', 'Clear Sheet', 'yesno')
+    .then(function (y) {
+      if (y !== 'Yes') return false;
+      var table = document.getElementById(gridId);
+      var cols = (table && table._spec ? table._spec.columns.length : 0) || (OF.readGrid(gridId)[0] || []).length;
+      var header = OF.readGrid(gridId)[0] || [];
+      var maxRows = (table && table._spec && table._spec.maxRows) || 2;
+      var cleared = [header];
+      for (var r = 1; r < maxRows; r++) {
+        var blank = [];
+        for (var c = 0; c < cols; c++) blank.push('');
+        cleared.push(blank);
+      }
+      OF.save(gridId, cleared);
+      OF.rebuildFromSave(gridId);
+      OF.info('"' + sheetName + '" sheet cleared.', 'Clear Sheet');
+      return true;
+    });
 };
 
 /* ---------- GoToSuppliers.bas (device restriction) ---------- */

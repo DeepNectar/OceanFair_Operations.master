@@ -28,7 +28,12 @@ OF.macroMap = {
   spinUp:              function () { return OF.spinUp(); },              // Tab 3 / Sheet3.cls SpinButton1
   spinDown:            function () { return OF.spinDown(); },            // Tab 3 / Sheet3.cls SpinButton1
   unlockTab4:          function () { return OF.unlockTab4(); },          // hidden tab4.cls
-  executeAllFunctions: function () { return OF.executeAllFunctions(); }  // hidden tab4.cls
+  executeAllFunctions: function () { return OF.executeAllFunctions(); }, // hidden tab4.cls
+  clearSheetTab1:      function () { return OF.clearSheet('grid-tab1', 'ETA INFO'); },
+  clearSheetTab2:      function () { return OF.clearSheet('grid-tab2', 'RE-ORDER'); },
+  clearSheetTab3:      function () { return OF.clearSheet('grid-tab3', 'Inquiry data'); },
+  clearSheetTab4:      function () { return OF.clearSheet('grid-tab4', 'Suppliers'); },
+  clearSheetEmaillog:  function () { return OF.clearAllLogData(); }      // EmailLog sheet clear = wipe log
 };
 
 OF.bindMacroButtons = function () {
