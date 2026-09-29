@@ -76,14 +76,44 @@ OF.bindCommonButtons = function () {
       var applyRows = function (rows) {
         if (!rows || !rows.length) { OF.warn('No data found in the selected file.', 'Import'); return; }
         var width = (table && table._spec ? table._spec.columns.length : 0) || rows[0].length;
-        var norm = rows.map(function (r) {
+        // drop completely blank rows so bulk files don't import empty filler
+        var cleaned = rows.filter(function (r) {
+          for (var c = 0; c < r.length; c++) if (String(r[c] == null ? '' : r[c]).trim() !== '') return true;
+          return false;
+        });
+        if (!cleaned.length) { OF.warn('The file only contained blank rows — nothing to import.', 'Import'); return; }
+
+        /* Suppliers sheet bulk-import rules:
+           - if the file has its own header row (first row contains words like
+             "supplier"/"email"/"sr"), keep it as the sheet header;
+           - otherwise treat every row as data and rebuild a header. */
+        var firstTxt = cleaned[0].map(function (v) { return String(v).toLowerCase(); }).join(' ');
+        var fileHasHeader = /supplier|email|\bsr\b/.test(firstTxt);
+        var norm = cleaned.map(function (r) {
           var out = [];
           for (var c = 0; c < width; c++) out.push(String(r[c] == null ? '' : r[c]).trim());
           return out;
         });
+        if (target === 'grid-tab4') {
+          if (!fileHasHeader) {
+            norm.unshift(['SR#', 'SUPPLIER NAME', 'EMAIL 1', 'EMAIL 2']);
+          }
+          // grow the grid so ALL imported suppliers are visible at once
+          var spec = table && table._spec;
+          if (spec) spec.maxRows = Math.max(spec.maxRows || 40, norm.length);
+        }
         OF.save(target, norm);
         OF.rebuildFromSave(target);
-        OF.info('Imported ' + norm.length + ' row(s) from "' + file.name + '" into ' + sheetName + '.', 'Import');
+        if (target === 'grid-tab4' && OF.TAB4_UNLOCKED) {
+          // renumber SR# / format / lock the imported rows (Worksheet_Change port)
+          OF.tab4WorksheetChange(1, 1);
+        }
+        var dataCount = norm.length - 1;
+        if (target === 'grid-tab4') {
+          OF.info('Bulk-imported ' + dataCount + ' supplier(s) from "' + file.name + '". SR# numbering applied automatically.', 'Import');
+        } else {
+          OF.info('Imported ' + dataCount + ' data row(s) from "' + file.name + '" into ' + sheetName + '.', 'Import');
+        }
       };
       if (/\.xlsx$/i.test(file.name)) {
         OF.readXlsxAsync(file).then(applyRows)['catch'](function (e) {
