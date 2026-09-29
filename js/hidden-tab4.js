@@ -47,6 +47,7 @@ OF.initTab4 = function () {
   var demo = OF.load('grid-tab4', null) || OF.defaultSuppliers();
   OF.buildGrid({
     id: 'grid-tab4',
+    sheetName: 'Suppliers',
     columns: [
       { name: 'A . SR#', align: 'center' },
       { name: 'B . SUPPLIER NAME', align: 'left' },

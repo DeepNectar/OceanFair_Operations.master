@@ -22,6 +22,7 @@ OF.initTab3 = function () {
   ]);
   OF.buildGrid({
     id: 'grid-tab3',
+    sheetName: 'Inquiry data',
     columns: [
       { name: 'A . ITEM CODE', align: 'center' },
       { name: 'B . DESCRIPTION', align: 'left' },
@@ -87,6 +88,7 @@ OF.renderLog = function () {
   var rows = [OF.LOG_HEADERS].concat(OF.getLog());
   OF.buildGrid({
     id: 'grid-emaillog',
+    sheetName: 'EmailLog',
     columns: OF.LOG_HEADERS.map(function (h) { return { name: h, align: 'center' }; }),
     rows: rows, maxRows: Math.max(rows.length, 12),
     isLocked: function () { return true; } // log sheet is read-only/protected

@@ -14,6 +14,7 @@ OF.initTab2 = function () {
   ]);
   OF.buildGrid({
     id: 'grid-tab2',
+    sheetName: 'RE-ORDER',
     columns: [
       { name: 'SR NO#', align: 'center' },
       { name: 'ITEM CODE#', align: 'center' },

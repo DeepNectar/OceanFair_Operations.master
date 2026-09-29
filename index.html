@@ -60,13 +60,16 @@
           <button class="btn btn-run" data-macro="extractVesselData">📥 Extract Vessel Data</button>
           <button class="btn btn-run" data-macro="addPortDropdown">🔽 Add Port Dropdown (No Password)</button>
           <button class="btn btn-run btn-send" data-macro="sendEtaEmail">✉ Send Stylish ETA Email</button>
+          <button class="btn btn-run btn-clear-sheet" data-macro="clearSheetTab1">🧹 Clear Sheet</button>
         </div>
       </div>
       <div class="sheet-toolbar">
         <button class="btn btn-mini" data-op="row-add" data-target="grid-tab1">＋ Row</button>
         <button class="btn btn-mini" data-op="row-del" data-target="grid-tab1">－ Row</button>
-        <button class="btn btn-mini" data-op="clear" data-target="grid-tab1">🗑 Clear</button>
+        <button class="btn btn-mini" data-op="import-excel" data-target="grid-tab1">📥 Import Excel</button>
+        <button class="btn btn-mini" data-op="export-excel" data-target="grid-tab1">📤 Export Excel</button>
         <span class="hint">Columns A–E editable · SR# auto-numbers on change (Sheet1.cls Worksheet_Change port) · excluded group headers are not numbered</span>
+        <input type="file" id="import-file-grid-tab1" data-target="grid-tab1" accept=".xlsx,.csv,.txt,.tsv" style="display:none;" />
       </div>
       <div class="grid-wrap"><table id="grid-tab1" class="sheet-grid eta-grid"></table></div>
     </section>
@@ -77,13 +80,16 @@
         <h2>RE-ORDER <span class="muted">(Tab 2 folder)</span></h2>
         <div class="run-buttons">
           <button class="btn btn-run btn-send" data-macro="sendReorderEmail">✉ Send Dynamic HTML Table Email (Re-Order)</button>
+          <button class="btn btn-run btn-clear-sheet" data-macro="clearSheetTab2">🧹 Clear Sheet</button>
         </div>
       </div>
       <div class="sheet-toolbar">
         <button class="btn btn-mini" data-op="row-add" data-target="grid-tab2">＋ Row</button>
         <button class="btn btn-mini" data-op="row-del" data-target="grid-tab2">－ Row</button>
-        <button class="btn btn-mini" data-op="clear" data-target="grid-tab2">🗑 Clear</button>
+        <button class="btn btn-mini" data-op="import-excel" data-target="grid-tab2">📥 Import Excel</button>
+        <button class="btn btn-mini" data-op="export-excel" data-target="grid-tab2">📤 Export Excel</button>
         <span class="hint">Rows are filtered by Supplier-SR numbers in column G when sending</span>
+        <input type="file" id="import-file-grid-tab2" data-target="grid-tab2" accept=".xlsx,.csv,.txt,.tsv" style="display:none;" />
       </div>
       <div class="grid-wrap"><table id="grid-tab2" class="sheet-grid reorder-grid"></table></div>
     </section>
@@ -96,6 +102,7 @@
           <button class="btn btn-run" data-macro="addMailList">🔽 Add Mail List Dropdown (J3:J6)</button>
           <button class="btn btn-run btn-send" data-macro="sendInquiryEmails">📨 SEND EMAILS TO SUPPLIERS (Excel Format)</button>
           <button class="btn btn-run" data-macro="viewEmailLog">🗂 View Email Log</button>
+          <button class="btn btn-run btn-clear-sheet" data-macro="clearSheetTab3">🧹 Clear Sheet</button>
         </div>
       </div>
 
@@ -122,8 +129,10 @@
       <div class="sheet-toolbar">
         <button class="btn btn-mini" data-op="row-add" data-target="grid-tab3">＋ Row</button>
         <button class="btn btn-mini" data-op="row-del" data-target="grid-tab3">－ Row</button>
-        <button class="btn btn-mini" data-op="clear" data-target="grid-tab3">🗑 Clear</button>
+        <button class="btn btn-mini" data-op="import-excel" data-target="grid-tab3">📥 Import Excel</button>
+        <button class="btn btn-mini" data-op="export-excel" data-target="grid-tab3">📤 Export Excel</button>
         <span class="hint">Supplier code(s) go in column H (comma separated). Max 25 items per batch email.</span>
+        <input type="file" id="import-file-grid-tab3" data-target="grid-tab3" accept=".xlsx,.csv,.txt,.tsv" style="display:none;" />
       </div>
       <div class="grid-wrap"><table id="grid-tab3" class="sheet-grid inquiry-grid"></table></div>
 
@@ -160,11 +169,15 @@
             <button class="btn btn-run" data-macro="executeAllFunctions">⚙ Execute All Functions</button>
             <button class="btn btn-mini" data-op="row-add" data-target="grid-tab4">＋ Row</button>
             <button class="btn btn-mini" data-op="row-del" data-target="grid-tab4">－ Row</button>
+            <button class="btn btn-mini" data-op="import-excel" data-target="grid-tab4">📥 Import Excel</button>
+            <button class="btn btn-mini" data-op="export-excel" data-target="grid-tab4">📤 Export Excel</button>
+            <button class="btn btn-run btn-clear-sheet" data-macro="clearSheetTab4">🧹 Clear Sheet</button>
           </div>
         </div>
         <div class="sheet-toolbar">
           <span class="hint">Execute All = protection + white text + A/B re-numbering + auto-lock filled cells (ExecuteAllFunctions port). Editing A/B triggers the Worksheet_Change logic automatically.</span>
         </div>
+        <input type="file" id="import-file-grid-tab4" data-target="grid-tab4" accept=".xlsx,.csv,.txt,.tsv" style="display:none;" />
         <div class="grid-wrap dark"><table id="grid-tab4" class="sheet-grid suppliers-grid"></table></div>
       </div>
     </section>
@@ -176,8 +189,12 @@
         <div class="run-buttons">
           <button class="btn btn-run" data-macro="clearLogForQuote">🧹 Clear Log For Quote…</button>
           <button class="btn btn-run btn-danger" data-macro="clearAllLogData">🗑 Clear ALL Log Data</button>
+          <button class="btn btn-mini" data-op="import-excel" data-target="grid-emaillog">📥 Import Excel</button>
+          <button class="btn btn-mini" data-op="export-excel" data-target="grid-emaillog">📤 Export Excel</button>
+          <button class="btn btn-run btn-clear-sheet" data-macro="clearSheetEmaillog">🧹 Clear Sheet</button>
         </div>
       </div>
+      <input type="file" id="import-file-grid-emaillog" data-target="grid-emaillog" accept=".xlsx,.csv,.txt,.tsv" style="display:none;" />
       <div class="grid-wrap"><table id="grid-emaillog" class="sheet-grid log-grid"></table></div>
     </section>
 
