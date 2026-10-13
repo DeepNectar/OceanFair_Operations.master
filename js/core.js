@@ -155,25 +155,352 @@ OF.esc = function (s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 };
 
-/* ---------- mailto: composer (replaces Outlook CreateItem) ---------- */
+/* ---------- email composer (replaces Outlook CreateItem / .Display) ----------
+   mailto: can NOT carry an HTML body — clients strip tags and drop <style>/<table>
+   formatting. So every generated HTML body is normalised here into ONE consistent,
+   email-client-safe structure that is used by all tabs/buttons:
+     • tableless plain-text version  -> mailto: draft body
+     • HTML version                  -> preview window + "Copy HTML" for the mail body
+   Every OF.openMail() call passes its htmlBody through OF.buildEmailHtml(), so the
+   tables and text of all emails look the same and render correctly.                */
+
+/* ---- CSS subset we can resolve ourselves (mail clients ignore <style> blocks,
+        therefore every rule is flattened onto inline style attributes) ---- */
+OF.parseCssRules = function (cssText) {
+  var rules = [];
+  cssText.replace(/\/\*[\s\S]*?\*\//g, '').split('}').forEach(function (chunk) {
+    var parts = chunk.split('{');
+    if (parts.length < 2) return;
+    var selector = parts[0].replace(/\s+/g, ' ').trim();
+    if (!selector) return;
+    var decls = {};
+    parts.slice(1).join('{').split(';').forEach(function (d) {
+      var i = d.indexOf(':');
+      if (i > 0) decls[d.slice(0, i).trim().toLowerCase()] = d.slice(i + 1).trim();
+    });
+    selector.split(',').forEach(function (sel) {
+      sel = sel.trim();
+      if (sel) rules.push({ sel: sel, simple: /^[a-zA-Z]+|\.[\w-]+$/.test(sel), decls: decls });
+    });
+  });
+  return rules;
+};
+
+OF.styleFromDecls = function (decls) {
+  var out = '';
+  Object.keys(decls).forEach(function (prop) {
+    out += prop + ':' + decls[prop] + ';';
+  });
+  return out;
+};
+
+OF.matchesSimpleSelector = function (el, sel) {
+  if (sel.charAt(0) === '.') {
+    return (' ' + (el.getAttribute('class') || '') + ' ')
+      .indexOf(' ' + sel.slice(1) + ' ') >= 0;
+  }
+  return el.tagName.toLowerCase() === sel.toLowerCase();
+};
+
+/* Inline <style>/<class> rules are ignored by most mail clients, therefore all
+   styles are flattened onto each element (inline style attributes). */
+OF.inlineStyles = function (html) {
+  var doc = new DOMParser().parseFromString('<!DOCTYPE html><html><head></head><body>' + html + '</body></html>', 'text/html');
+
+  /* collect every stylesheet rule found in the original markup */
+  var rules = [];
+  var styleEls = doc.getElementsByTagName('style');
+  for (var s = 0; s < styleEls.length; s++) rules = rules.concat(OF.parseCssRules(styleEls[s].textContent));
+
+  /* copy the original font declarations down to every text element, because mail
+     clients do not inherit from a normalised <body>. */
+  var fontCss = OF.extractFontRules(html);
+
+  /* keep whatever the ported VBA markup asked for, but make it mail-safe */
+  var defaults = {
+    'h1': fontCss + 'font-size:22px;line-height:1.3;margin:0 0 14px;color:#8B0000;font-weight:bold;',
+    'h2': fontCss + 'font-size:18px;line-height:1.3;margin:0 0 12px;color:#2c3e50;font-weight:bold;',
+    'h3': fontCss + 'font-size:16px;line-height:1.3;margin:0 0 12px;color:#2c3e50;font-weight:bold;',
+    'p':  fontCss + 'margin:0 0 12px;line-height:1.5;',
+    'li': fontCss + 'margin:0 0 6px;line-height:1.5;',
+    'span': fontCss,
+    'strong': fontCss,
+    'em': fontCss,
+    'b': fontCss,
+    'i': fontCss,
+    'small': fontCss,
+    'div': fontCss + 'margin:0 0 12px;',
+    'a':  fontCss + 'color:#0563C1;text-decoration:underline;',
+    'img': 'max-width:100%;height:auto;border:0;display:block;',
+    'blockquote': fontCss + 'margin:0 0 12px;padding:8px 14px;border-left:4px solid #DDDDDD;color:#444444;'
+  };
+
+  /* pass 1 — author CSS rules (later rules win), then tag defaults as a fallback */
+  var all = doc.getElementsByTagName('*');
+  for (var n = 0; n < all.length; n++) {
+    var el = all[n], tag = el.tagName.toLowerCase();
+    if (tag === 'br' || tag === 'hr' || tag === 'style' || tag === 'script') continue;
+    var css = '';
+    rules.forEach(function (r) {
+      if (r.simple && OF.matchesSimpleSelector(el, r.sel)) css += OF.styleFromDecls(r.decls);
+    });
+    if (defaults[tag]) css += defaults[tag];
+    if (css) OF.mergeStyle(el, css);
+  }
+
+  /* pass 2 — tables: fixed layout, one hairline border per cell, no stray gaps */
+  var tables = doc.getElementsByTagName('table');
+  for (var t = 0; t < tables.length; t++) {
+    var tb = tables[t];
+    tb.setAttribute('cellspacing', '0');
+    tb.setAttribute('cellpadding', '0');
+    tb.removeAttribute('border');
+    tb.removeAttribute('width');
+    OF.mergeStyle(tb, 'border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;' +
+      "width:100%;max-width:900px;font-size:13px;color:#202020;background-color:#ffffff;");
+
+    var rows = tb.getElementsByTagName('tr');
+    for (var r2 = 0; r2 < rows.length; r2++) {
+      var cells = rows[r2].children;
+      var rowStyle = (rows[r2].getAttribute('style') || '').toLowerCase();
+      var isHeaderRow = /background(-color)?\s*:\s*#4472c4/.test(rowStyle);
+      for (var c = 0; c < cells.length; c++) {
+        var cell = cells[c];
+        var old = (cell.getAttribute('style') || '').toLowerCase();
+        var isHead = cell.tagName === 'TH' || isHeaderRow || /background(-color)?\s*:\s*#4472c4/.test(old);
+        var align = /text-align\s*:\s*left/.test(old) ? 'left'
+                  : /text-align\s*:\s*right/.test(old) ? 'right' : 'center';
+        var css2 = fontCss + 'border:1px solid #BFC9D4;padding:8px 10px;text-align:' + align + ';vertical-align:top;';
+        if (isHead) css2 += 'background-color:#4472C4;color:#ffffff;font-weight:bold;';
+        else if (/background-color\s*:\s*(#e9e9e9|#f2f2f2)/.test(old)) css2 += 'background-color:#F2F4F7;';
+        OF.mergeStyle(cell, css2);
+      }
+    }
+  }
+
+  /* drop <style>/<script>/link — they never survive a real mail client */
+  ['style', 'script', 'link', 'meta', 'title'].forEach(function (tag) {
+    var els = doc.getElementsByTagName(tag);
+    while (els.length) els[0].parentNode.removeChild(els[0]);
+  });
+
+  /* class/id attributes are dead weight once everything is inlined */
+  var cleaned = doc.getElementsByTagName('*');
+  for (var k = 0; k < cleaned.length; k++) {
+    cleaned[k].removeAttribute('class');
+    cleaned[k].removeAttribute('id');
+  }
+
+  return doc.body.innerHTML;
+};
+
+/* pull the font declarations out of the body tag / <style> blocks of a raw htmlBody
+   so the original look (Times New Roman, Calibri, …) survives inline-only rendering. */
+OF.extractFontRules = function (html) {
+  var src = String(html || '');
+  var rules = {};
+  var order = [];
+  function add(prop, value) {
+    prop = prop.toLowerCase();
+    if (!/^(font-family|font-size|color|line-height)$/.test(prop)) return;
+    if (rules[prop] === undefined) order.push(prop);
+    rules[prop] = value.trim();
+  }
+  /* 1. inline style on <body ...> */
+  var m = src.match(/<body[^>]*style\s*=\s*["']([^"']*)["']/i);
+  if (m) m[1].split(';').forEach(function (d) {
+    var i = d.indexOf(':'); if (i > 0) add(d.slice(0, i), d.slice(i + 1));
+  });
+  /* 2. simple `body{...}` / `body,p{...}` rules inside <style> blocks */
+  var styles = src.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || [];
+  styles.forEach(function (block) {
+    var cssText = block.replace(/<[^>]*>/g, '');
+    cssText.split('}').forEach(function (chunk) {
+      var parts = chunk.split('{');
+      if (parts.length < 2) return;
+      var selectors = parts[0].replace(/\s+/g, ' ').trim();
+      if (!/(^|[,\s])body(\s*,|$)|(^|[,\s])(p|td|th)(\s*,|$)/i.test(selectors)) return;
+      parts[1].split(';').forEach(function (d) {
+        var i = d.indexOf(':'); if (i > 0) add(d.slice(0, i), d.slice(i + 1));
+      });
+    });
+  });
+  /* sensible fallback when the source declared nothing */
+  if (rules['font-family'] === undefined) add('font-family', "Arial, Helvetica, sans-serif");
+  if (rules['font-size'] === undefined) add('font-size', '14px');
+  if (rules.color === undefined) add('color', '#202020');
+  return order.map(function (prop) { return prop + ':' + rules[prop] + ';'; }).join('');
+};
+
+/* append default rules without overriding the markup's own declarations */
+OF.mergeStyle = function (el, css) {
+  var existing = (el.getAttribute('style') || '').trim();
+  if (!existing) { el.setAttribute('style', css); return; }
+  var keep = {};
+  existing.split(';').forEach(function (decl) {
+    var idx = decl.indexOf(':');
+    if (idx > 0) keep[decl.slice(0, idx).trim().toLowerCase()] = true;
+  });
+  var extra = css.split(';').filter(function (decl) {
+    var idx = decl.indexOf(':');
+    return idx > 0 && !keep[decl.slice(0, idx).trim().toLowerCase()];
+  }).join(';');
+  if (extra) el.setAttribute('style', existing.replace(/;?\s*$/, ';') + extra + ';');
+};
+
+/* single wrapper shared by every email body in this app */
+OF.buildEmailHtml = function (innerHtml) {
+  var inner = OF.inlineStyles(innerHtml || '');
+  return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8" />\n' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1" />\n' +
+    '<!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch>' +
+    '</o:OfficeDocumentSettings></xml><![endif]-->\n</head>\n<body style="margin:0;padding:0;background-color:#F2F4F7;">\n' +
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" ' +
+    'style="border-collapse:collapse;background-color:#F2F4F7;">\n<tr><td align="center" style="padding:18px 10px;">\n' +
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" ' +
+    'style="border-collapse:collapse;width:100%;max-width:900px;background-color:#ffffff;' +
+    'border:1px solid #DDE3EA;">\n<tr><td style="padding:18px 20px;font-family:Arial,Helvetica,sans-serif;' +
+    'font-size:14px;line-height:1.5;color:#202020;">\n' +
+    inner + '\n</td></tr>\n</table>\n</td></tr>\n</table>\n</body>\n</html>';
+};
+
+/* tableless plain-text rendering: keeps column alignment readable everywhere */
+OF.htmlToText = function (html) {
+  var doc = new DOMParser().parseFromString('<!DOCTYPE html><html><body>' + (html || '') + '</body></html>', 'text/html');
+  var out = [];
+  var push = function (line) { out.push(line); };
+
+  var walkBlocks = function (node) {
+    var kids = node.children;
+    if (!kids || !kids.length) {
+      var txt = (node.textContent || '').replace(/\s+/g, ' ').trim();
+      if (txt) push(txt);
+      return;
+    }
+    for (var i = 0; i < kids.length; i++) {
+      var el = kids[i], tag = el.tagName.toLowerCase();
+      if (tag === 'table') { push(OF.tableToText(el)); continue; }
+      if (tag === 'ul' || tag === 'ol') {
+        Array.prototype.forEach.call(el.children, function (li, n) {
+          push((tag === 'ol' ? (n + 1) + '. ' : '- ') + (li.textContent || '').replace(/\s+/g, ' ').trim());
+        });
+        continue;
+      }
+      if (tag === 'br' || tag === 'hr') { push(''); continue; }
+      var hasBlockChild = el.querySelector('table, ul, ol, p, div, h1, h2, h3, tr');
+      if (hasBlockChild) { walkBlocks(el); }
+      else {
+        var t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+        if (t) push(t);
+      }
+    }
+  };
+  walkBlocks(doc.body);
+  return out.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+};
+
+OF.tableToText = function (table) {
+  var rows = [];
+  Array.prototype.forEach.call(table.rows, function (tr) {
+    var cells = [];
+    Array.prototype.forEach.call(tr.cells, function (td) {
+      cells.push((td.textContent || '').replace(/\s+/g, ' ').trim());
+    });
+    if (cells.join('').length) rows.push(cells);
+  });
+  if (!rows.length) return '';
+  var ncols = rows.reduce(function (m, r) { return Math.max(m, r.length); }, 0);
+  var widths = [];
+  for (var c = 0; c < ncols; c++) {
+    widths[c] = rows.reduce(function (m, r) { return Math.max(m, (r[c] || '').length); }, 0);
+  }
+  var pad = function (s, w) { s = s || ''; while (s.length < w) s += ' '; return s; };
+  var lines = rows.map(function (r) {
+    var parts = [];
+    for (var c = 0; c < r.length; c++) parts.push(pad(r[c], widths[c]));
+    return parts.join(' | ').replace(/\s+$/, '');
+  });
+  var sep = widths.map(function (w) { return new Array(w + 1).join('-'); }).join('-+-');
+  return [lines[0], sep].concat(lines.slice(1)).join('\n');
+};
+
+OF.copyToClipboard = function (text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text)
+      .then(function () { return true; })
+      .catch(function () { return OF.copyToClipboardFallback(text); });
+  }
+  return Promise.resolve(OF.copyToClipboardFallback(text));
+};
+OF.copyToClipboardFallback = function (text) {
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.top = '-9999px';
+    document.body.appendChild(ta); ta.select();
+    var ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return Promise.resolve(ok);
+  } catch (e) { return Promise.resolve(false); }
+};
+
+OF.downloadFile = function (name, content, mime) {
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type: mime || 'text/html;charset=utf-8' }));
+  a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+};
+
 OF.openMail = function (opts) {
-  // opts: to, cc, subject, htmlBody  — body sent as plain-text summary + HTML preview tab
-  var plain = OF.htmlToText(opts.htmlBody);
+  // opts: to, cc, subject, htmlBody — HTML body is normalised (tables + text) for every client
+  var html = OF.buildEmailHtml(opts.htmlBody);
+  var plain = OF.htmlToText(html);
   var href = 'mailto:' + encodeURIComponent(opts.to || '') +
     '?subject=' + encodeURIComponent(opts.subject || '') +
     (opts.cc ? '&cc=' + encodeURIComponent(opts.cc) : '') +
     '&body=' + encodeURIComponent(plain.substring(0, 1800));
-  // Also open a full HTML preview window (Outlook .Display replacement)
-  var w = window.open('', '_blank');
-  if (w) { w.document.write(opts.htmlBody); w.document.close(); }
-  location.href = href;
-  OF.info('Email draft opened in your mail app + HTML preview tab.', 'Outlook');
-};
 
-OF.htmlToText = function (html) {
-  var d = document.createElement('div');
-  d.innerHTML = html;
-  return (d.innerText || d.textContent || '').replace(/\n{3,}/g, '\n\n');
+  // Preview window = what the email really looks like (Outlook .Display replacement),
+  // with buttons to copy the HTML straight into the mail body or save it as a file.
+  var w = window.open('', '_blank');
+  if (w) {
+    var bar = '<div id="of-mail-toolbar" style="position:sticky;top:0;z-index:9;background:#1F3B5C;color:#fff;' +
+      "padding:10px 14px;font-family:Arial,Helvetica,sans-serif;font-size:13px;" +
+      'display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+      '<strong>Email preview — ' + OF.esc(opts.subject || '') + '</strong>' +
+      '<span style="opacity:.8;">To: ' + OF.esc(opts.to || '') + '</span>' +
+      (opts.cc ? '<span style="opacity:.8;">Cc: ' + OF.esc(opts.cc) + '</span>' : '') +
+      '<button id="of-copy-html" style="margin-left:auto;cursor:pointer;background:#4472C4;border:0;' +
+      'color:#fff;padding:7px 12px;border-radius:4px;font-size:13px;">Copy HTML for email body</button>' +
+      '<button id="of-dl-html" style="cursor:pointer;background:#2E7D32;border:0;color:#fff;' +
+      'padding:7px 12px;border-radius:4px;font-size:13px;">Save .html</button>' +
+      '<button id="of-copy-text" style="cursor:pointer;background:#607D8B;border:0;color:#fff;' +
+      'padding:7px 12px;border-radius:4px;font-size:13px;">Copy plain text</button>' +
+      '</div>';
+    w.document.write(html.replace(/<\/head>/i, '</head>') );
+    // inject toolbar at the top of the rendered document
+    w.document.close();
+    try {
+      var host = w.document.body;
+      host.insertAdjacentHTML('afterbegin', bar);
+      var fileName = (OF.cleanFileName(opts.subject || 'email') || 'email') + '.html';
+      w.document.getElementById('of-copy-html').onclick = function () {
+        OF.copyToClipboard(html).then(function (ok) {
+          w.alert(ok ? 'Email HTML copied — paste it into the body of your email (rich-text / HTML mode).'
+                     : 'Copy blocked by the browser — please use "Save .html" instead.');
+        });
+      };
+      w.document.getElementById('of-copy-text').onclick = function () {
+        OF.copyToClipboard(plain).then(function (ok) { if (!ok) w.alert('Copy blocked by the browser.'); });
+      };
+      w.document.getElementById('of-dl-html').onclick = function () {
+        OF.downloadFile(fileName, html);
+      };
+    } catch (e) { /* preview still usable */ }
+  }
+  location.href = href;
+  OF.info('Email draft opened in your mail app + HTML preview tab (use "Copy HTML for email body" there — mailto cannot carry HTML).', 'Outlook');
 };
 
 /* ---------- date helpers (VBA Format / ordinals) ---------- */
